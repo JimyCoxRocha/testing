@@ -1,0 +1,28 @@
+sfnEjecutarMonetOtro
+
+{
+
+    "editartarjetasotrosbancos":{
+        "urlServicio": "http://NLB-API-DEV-7f7d6844845bb6b5.elb.us-east-1.amazonaws.com:9005/tarjetaPY/pagarAvanceEfectivo",
+        "timeoutMilisegundos": 20000,
+		"configuracion": {
+			"validarHash": false,
+			"llamarServicioUrl": false,
+			"borrarHash": false,
+			"crearHash": false,
+			"requiereAutorizacion": false,	
+			"hashOrigen": "validarotpid",			
+			"borrarClientId": false,
+			"crearClientId": false,
+			"nombreMapeoRespuestaFinal": "pagaravanceefectivo",
+            "validarInput": {
+                "validar": false,
+                "asegurarCedula": "cliente.identificacion",
+                "logicaPersonalizada": "edicionTcNecesitaHashOtp"
+            }
+		}
+	}
+
+    
+
+}
