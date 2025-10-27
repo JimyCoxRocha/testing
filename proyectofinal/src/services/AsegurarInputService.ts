@@ -50,14 +50,19 @@ class EdicionTcNecesitaHashOtpStrategy extends BaseValidacionEstrategia {
 // Descomentar cuando se exporte desde dynamodb.ts
 /*
 class EjecutarTransferenciaValidacionStrategy extends BaseValidacionEstrategia {
-  async validar(event: any, configuracion: any): Promise<void> {
-    console.log('🔒 Ejecutando validación: ejecutarTransferenciaValidacion');
-    // Implementación para validar desde DynamoDB
-    // Ver ejemplo completo en comentarios
-  }
-  
-  modificarConfiguracion(event: any, configuracion: any): void {
-    // Implementación para modificar configuración de transferencias
+  async procesar(event: any, configuracion: any): Promise<void> {
+    console.log('🔒 Ejecutando procesamiento: ejecutarTransferenciaValidacion');
+    
+    // 1. VALIDAR desde DynamoDB
+    // Ejemplo: const datosUsuario = await getItemCustom(...);
+    // if (!datosUsuario) {
+    //   this.lanzarError(..., 'Usuario no encontrado', ...);
+    // }
+    
+    // 2. MODIFICAR configuración si es necesario
+    // Ejemplo: configuracion.requiereAutorizacion = true;
+    
+    console.log('✅ Procesamiento ejecutarTransferenciaValidacion completado');
   }
 }
 */
@@ -90,11 +95,14 @@ export class AsegurarInputService {
   }
   
   async procesar(event: any, configuracion: any): Promise<void> {
-    // Ejecutar validaciones
     await this.estrategia.procesar(event, configuracion);
-    
-
   }
   
+  // Método para registrar nuevas estrategias dinámicamente
+  static registrarEstrategia(nombre: string, estrategiaClass: new () => IValidacionEstrategia): void {
+    estrategias[nombre] = estrategiaClass;
+    console.log(`📝 Estrategia registrada: ${nombre}`);
+  }
 }
+
 
