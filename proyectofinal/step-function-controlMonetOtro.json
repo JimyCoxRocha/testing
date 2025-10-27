@@ -1,0 +1,230 @@
+{
+  "Comment": "Step Function para Generar OTP",
+  "StartAt": "fnInterDetalleFlujoControlMonetOtro",
+  "States": {
+    "fnInterDetalleFlujoControlMonetOtro": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterDetalleFlujoControlMonetOtro",
+      "Comment": "Paso 1: Ejecutar transferencia y validar datos de detalle flujo",
+      "Parameters": {
+        "body.$": "$.body",
+        "headers.$": "$.headers",
+        "authorizerContext.$": "$.authorizerContext",
+        "resource.$": "$.resource",
+        "originalInput.$": "$"
+      },
+      "ResultPath": "$.detalleFlujoResult",
+      "Next": "EvaluarRespuestaDetalleFlujo",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ErrorGenerarOtp",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+
+    "EvaluarRespuestaDetalleFlujo": {
+      "Type": "Choice",
+      "Comment": "Evaluar si la respuesta del detalle flujo es exitosa y determinar próximo paso",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$.detalleFlujoResult.body",
+              "IsPresent": true
+            },
+            {
+              "Variable": "$.detalleFlujoResult.body.codigoError",
+              "NumericEquals": 0
+            },
+            {
+              "Variable": "$.detalleFlujoResult.body.data.shouldContinue",
+              "BooleanEquals": true
+            }
+          ],
+          "Next": "fnInterPeticionControlMonetOtro"
+        }
+      ]
+    },
+
+    "fnInterPeticionControlMonetOtro": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterPeticionControlMonetOtro",
+      "Comment": "Generar OTP - Llamada al servicio",
+      "Parameters": {
+        "body": {
+          "detalleFlujoResult.$": "$.detalleFlujoResult",
+          "originalBody.$": "$.body",
+          "originalHeaders.$": "$.headers",
+          "authorizerContext.$": "$.authorizerContext",
+          "caracteresBloqueados": "<,>,*,?"
+        }
+      },
+      "ResultPath": "$.servicioResult",
+      "Next": "EvaluarRespuestaServicio",
+      "Catch": [
+        { "ErrorEquals": ["States.ALL"], "Next": "ErrorGenerarOtp", "ResultPath": "$.error" }
+      ]
+    },
+
+    "EvaluarRespuestaServicio": {
+      "Type": "Choice",
+      "Comment": "Evaluar respuesta del servicio y determinar si continuar con el flujo",
+      "Choices": [
+        {
+          "Or": [
+            {
+              "And": [
+                { "Variable": "$.servicioResult", "IsPresent": true },
+                { "Variable": "$.servicioResult.codigoError", "NumericEquals": 0 }
+              ]
+            },
+            {
+              "And": [
+                { "Variable": "$.servicioResult", "IsPresent": true },
+                { "Variable": "$.servicioResult.codigoError", "StringEquals": "0" }
+              ]
+            },
+            {
+              "And": [
+                { "Variable": "$.servicioResult", "IsPresent": true },
+                { "Variable": "$.servicioResult.codigoError", "NumericEquals": 1019 }
+              ]
+            },
+            {
+              "And": [
+                { "Variable": "$.servicioResult", "IsPresent": true },
+                { "Variable": "$.servicioResult.codigoError", "StringEquals": "1019" }
+              ]
+            }
+          ],
+          "Next": "PrepararVariableStepCrearHash"
+        }
+      ],
+      "Default": "PrepararRespuestaError"
+    },
+
+
+    "PrepararRespuestaError": {
+      "Type": "Pass",
+      "Comment": "Preparar la respuesta de error del servicio",
+      "Parameters": {
+        "codigoError.$": "$.servicioResult.data.codigoError",
+        "mensajeUsuario.$": "$.servicioResult.data.mensajeUsuario",
+        "mensajeSistema.$": "$.servicioResult.data.mensajeSistema"
+      },
+      "ResultPath": "$.respuestaError",
+      "Next": "RetornarRespuestaError"
+    },
+
+    "RetornarRespuestaError": {
+      "Type": "Pass",
+      "Comment": "Retornar respuesta de error del servicio",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "States.JsonToString($.respuestaError)",
+        "headers": {
+          "referrer-policy": "no-referrer",
+          "content-security-policy": "default-src 'self';",
+          "x-content-type-options": "nosniff",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Content-Type": "application/json"
+        }
+      },
+      "End": true
+    },
+
+    "PrepararVariableStepCrearHash": {
+      "Type": "Pass",
+      "Comment": "Preparar variable",
+      "Parameters": {
+        "responseAnterior.$": "$.servicioResult.data",
+        "hashOrigen.$": "$.detalleFlujoResult.body.data.configuracion.hashOrigen",
+        "hashDeprecado": false
+      },
+      "ResultPath": "$.detalleFlujoResult",
+      "Next": "fnInterCrearHashControlMonetOtro"
+    },
+
+    "fnInterCrearHashControlMonetOtro": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterCrearHashControlMonetOtro",
+      "Comment": "Crear Hash de seguridad para OTP con origen",
+      "Parameters": {
+        "body.$": "States.JsonToString($.body)",
+        "headers.$": "$.headers",
+        "detalleFlujoResponse.$": "$.detalleFlujoResult"
+      },
+      "ResultPath": "$.crearHashResult",
+      "Next": "PrepararRespuestaFinal",
+      "Catch": [
+        { "ErrorEquals": ["States.ALL"], "Next": "ErrorCrearHash", "ResultPath": "$.error" }
+      ]
+    },
+
+    "PrepararRespuestaFinal": {
+      "Type": "Pass",
+      "Comment": "Preparar respuesta final exitosa",
+      "Parameters": {
+        "codigoError": 0,
+        "mensajeSistema": "OTP generado exitosamente",
+        "mensajeUsuario": "OTP generado exitosamente",
+        "data": {
+          "codigoError.$": "$.servicioResult.data.codigoError",
+          "mensajeSistema.$": "$.servicioResult.data.mensajeSistema",
+          "mensajeUsuario.$": "$.servicioResult.data.mensajeUsuario",
+          "referenciaRes.$": "$.crearHashResult.referencia",
+          "hash.$": "$.crearHashResult.hash"
+        }
+      },
+      "ResultPath": "$.respuestaFinal",
+      "Next": "RetornarRespuestaExitosa"
+    },
+
+    "RetornarRespuestaExitosa": {
+      "Type": "Pass",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "States.JsonToString($.respuestaFinal.data)",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-OTP-Generated": "true",
+          "X-Hash-Generated": "true"
+        }
+      },
+      "End": true
+    },
+
+    "ErrorGenerarOtp": {
+      "Type": "Pass",
+      "Parameters": {
+        "statusCode": 500,
+        "body": {
+          "codigoError": 9007,
+          "mensajeUsuario": "No pudimos procesar tu información, por favor inténtalo mas tarde",
+          "mensajeSistema": "Información incompleta o inconsistente"
+        },
+        "headers": { "Content-Type": "application/json" }
+      },
+      "End": true
+    },
+
+    "ErrorCrearHash": {
+      "Type": "Pass",
+      "Parameters": {
+        "statusCode": 500,
+        "body": {
+          "codigoError": 9006,
+          "mensajeUsuario": "No pudimos procesar tu información, por favor inténtalo mas tarde",
+          "mensajeSistema": "Información incompleta o inconsistente"
+        },
+        "headers": { "Content-Type": "application/json" }
+      },
+      "End": true
+    }
+  }
+}

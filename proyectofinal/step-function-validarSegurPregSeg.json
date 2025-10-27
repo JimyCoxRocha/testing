@@ -1,0 +1,361 @@
+{
+  "Comment": "Step Function para Validar Preguntas de Seguridad",
+  "StartAt": "fnInterDetalleFlujoValidarSegPregSeg",
+  "States": {
+    "fnInterDetalleFlujoValidarSegPregSeg": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterDetalleFlujoValidarSegPregSeg",
+      "Comment": "Paso 1: Ejecutar transferencia y validar datos de detalle flujo",
+      "Parameters": {
+        "body.$": "$.body",
+        "headers.$": "$.headers",
+        "authorizerContext.$": "$.authorizerContext",
+        "resource.$": "$.resource",
+        "originalInput.$": "$"
+      },
+      "ResultPath": "$.detalleFlujoResult",
+      "Next": "EvaluarRespuestaDetalleFlujo",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PrepararRespuestaErrorValidarHash",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "EvaluarRespuestaDetalleFlujo": {
+      "Type": "Choice",
+      "Comment": "Evaluar si la respuesta del detalle flujo es exitosa y determinar próximo paso",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$.detalleFlujoResult.body",
+              "IsPresent": true
+            },
+            {
+              "Variable": "$.detalleFlujoResult.body.codigoError",
+              "NumericEquals": 0
+            },
+            {
+              "Variable": "$.detalleFlujoResult.body.data.shouldContinue",
+              "BooleanEquals": true
+            }
+          ],
+          "Next": "DeterminarProximaAccion"
+        }
+      ]
+    },
+
+    "DeterminarProximaAccion": {
+      "Type": "Choice",
+      "Comment": "Determinar la próxima acción basada en la configuración del flujo",
+      "Choices": [
+        {
+          "Variable": "$.detalleFlujoResult.body.data.configuracion.validarHash",
+          "BooleanEquals": true,
+          "Next": "fnInterValidarHashSegurPregSeg"
+        }
+      ],
+      "Default": "fnInterPeticionValidarSegurPregSeg"
+    },
+
+
+    "EvaluarRespuestaServicio": {
+      "Type": "Choice",
+      "Comment": "Evaluar respuesta del servicio y determinar si continuar con el flujo",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$.servicioResult",
+              "IsPresent": true
+            },
+            {
+              "Variable": "$.servicioResult.codigoError",
+              "NumericEquals": 0
+            }
+          ],
+          "Next": "DeterminarAccionPostServicio"
+
+        }
+      ],
+      "Default": "PrepararRespuestaError"
+    },
+
+    "RespuestaFinalPostServicio": {
+      "Type": "Pass",
+      "Comment": "Retornar respuesta exitosa después de completar todo el flujo",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "States.JsonToString($.servicioResult.data)",
+        "headers": {
+          "referrer-policy": "no-referrer",
+          "content-security-policy": "default-src 'self';",
+          "x-content-type-options": "nosniff",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Content-Type": "application/json",
+          "X-Flow-Completed": "true",
+          "X-Original-Headers-Processed": "true"
+        }
+      },
+      "End": true
+    },
+    
+    "DeterminarAccionPostServicio": {
+      "Type": "Choice",
+      "Comment": "Determinar qué acciones ejecutar después del servicio exitoso - Orden: BorrarHash → BorrarClientId → GenerarClientId",
+      "Choices": [
+        {
+          "Variable": "$.detalleFlujoResult.body.data.configuracion.borrarHash",
+          "BooleanEquals": true,
+          "Next": "fnInterBorrarHashSegurPregSeg"
+        }
+
+      ],
+      "Default": "RespuestaFinalPostServicio"
+    },
+
+    "PrepararRespuestaError": {
+      "Type": "Pass",
+      "Comment": "Preparar la respuesta de error del servicio",
+      "Parameters": {
+        "codigoError.$": "$.servicioResult.data.codigoError",
+        "mensajeUsuario.$": "$.servicioResult.data.mensajeUsuario",
+        "mensajeSistema.$": "$.servicioResult.data.mensajeSistema"
+      },
+      "ResultPath": "$.respuestaError",
+      "Next": "RetornarRespuestaError"
+    },
+
+    "RetornarRespuestaError": {
+      "Type": "Pass",
+      "Comment": "Retornar respuesta de error del servicio",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "States.JsonToString($.respuestaError)",
+        "headers": {
+          "referrer-policy": "no-referrer",
+          "content-security-policy": "default-src 'self';",
+          "x-content-type-options": "nosniff",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Content-Type": "application/json"
+        }
+      },
+      "End": true
+    },
+
+    "fnInterValidarHashSegurPregSeg": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterValidarHashSegurPregSeg",
+      "Comment": "Validar Hash de seguridad para Preguntas de Seguridad",
+      "Parameters": {
+        "body.$": "States.JsonToString($.body)",
+        "headers.$": "$.headers",
+        "hashOrigen": "generarpregseg",
+        "habilitarTokenro": true
+      },
+      "ResultPath": "$.validarHashResult",
+      "Next": "DeterminarAccionPostValidarHash",
+      "Catch": [
+        { "ErrorEquals": ["States.ALL"], "Next": "PrepararRespuestaErrorValidarHash", "ResultPath": "$.error" }
+      ]
+    },
+
+    "DeterminarAccionPostValidarHash": {
+      "Type": "Choice",
+      "Comment": "Determinar qué hacer después de validar Hash",
+      "Choices": [
+        {
+          "Variable": "$.detalleFlujoResult.body.data.configuracion.llamarServicioUrl",
+          "BooleanEquals": true,
+          "Next": "fnInterPeticionValidarSegurPregSeg"
+        }
+      ],
+      "Default": "RetornarRespuestaExitosa"
+    },
+
+
+    "PrepararVariableStepCrearHash": {
+      "Type": "Pass",
+      "Comment": "Preparar variable",
+      "Parameters": {
+        "responseAnterior.$": "$.servicioResult.data",
+        "hashOrigen": "validarpregseg",
+        "hashDeprecado": true
+      },
+      "ResultPath": "$.detalleFlujoResult",
+      "Next": "fnInterCrearHashSegurPregSeg"
+    },
+
+    "fnInterCrearHashSegurPregSeg": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterCrearHashSegurPregSeg",
+      "Comment": "Crear Hash de seguridad para Preguntas de Seguridad con referenciaRes",
+      "Parameters": {
+        "body.$": "States.JsonToString($.body)",
+        "headers.$": "$.headers",
+        "detalleFlujoResponse.$": "$.detalleFlujoResult"
+      },
+      "ResultPath": "$.crearHashResult",
+      "Next": "PrepararRespuestaFinal",
+      "Catch": [
+        { "ErrorEquals": ["States.ALL"], "Next": "ErrorCrearHash", "ResultPath": "$.error" }
+      ]
+    },
+
+    "fnInterPeticionValidarSegurPregSeg": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterPeticionValidarSegurPregSeg",
+      "Comment": "Ejecutar servicio Validar Preguntas de Seguridad",
+      "Parameters": {
+        "body": {
+          "detalleFlujoResult.$": "$.detalleFlujoResult",
+          "originalBody.$": "$.body",
+          "originalHeaders.$": "$.headers",
+          "authorizerContext.$": "$.authorizerContext",
+          "caracteresBloqueados": "<,>,*,?"
+        }
+      },
+      "ResultPath": "$.servicioResult",
+      "Next": "EvaluarRespuestaServicio",
+      "Catch": [
+        { "ErrorEquals": ["States.ALL"], "Next": "PrepararRespuestaErrorServicio", "ResultPath": "$.error" }
+      ]
+    },
+
+    "fnInterBorrarHashSegurPregSeg": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterBorrarHashSegurPregSeg",
+      "Comment": "Borrar Hash de seguridad tras uso",
+      "Parameters": {
+        "headers.$": "$.headers",
+        "hashOrigen": "generarpregseg",
+        "originalHeaders.$": "$.headers",
+        "authorizerContext.$": "$.authorizerContext",
+        "detalleFlujoResponse.$": "$.detalleFlujoResult",
+        "servicioResult.$": "$.servicioResult"
+      },
+      "ResultPath": "$.borrarHashResult",
+      "Next": "PrepararVariableStepCrearHash",
+      "Catch": [
+        { "ErrorEquals": ["States.ALL"], "Next": "ErrorBorrarHash", "ResultPath": "$.error" }
+      ]
+    },
+
+    "PrepararRespuestaFinal": {
+      "Type": "Pass",
+      "Comment": "Preparar respuesta final exitosa",
+      "Parameters": {
+        "codigoError": 0,
+        "mensajeSistema": "Preguntas de Seguridad validadas exitosamente",
+        "mensajeUsuario": "Preguntas de Seguridad validadas exitosamente",
+        "data": {
+          "codigoError.$": "$.servicioResult.data.codigoError",
+          "mensajeSistema.$": "$.servicioResult.data.mensajeSistema",
+          "mensajeUsuario.$": "$.servicioResult.data.mensajeUsuario",
+          "referenciaRes.$": "$.crearHashResult.referencia",
+          "hash.$": "$.crearHashResult.hash"
+        }
+      },
+      "ResultPath": "$.respuestaFinal",
+      "Next": "RetornarRespuestaExitosa"
+    },
+
+    "RetornarRespuestaExitosa": {
+      "Type": "Pass",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "States.JsonToString($.respuestaFinal.data)",
+        "headers": {
+          "referrer-policy": "no-referrer",
+          "content-security-policy": "default-src 'self';",
+          "x-content-type-options": "nosniff",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Content-Type": "application/json"
+        }
+      },
+      "End": true
+    },
+
+    "PrepararRespuestaErrorServicio": {
+      "Type": "Pass",
+      "Parameters": {
+        "codigoError": 9008,
+        "mensajeUsuario": "No pudimos procesar tu información, por favor inténtalo mas tarde",
+        "mensajeSistema": "Información incompleta o inconsistente"
+      },
+      "ResultPath": "$.respuestaError",
+      "Next": "ErrorServicio"
+    },
+
+    "ErrorServicio": {
+      "Type": "Pass",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "States.JsonToString($.respuestaError)",
+        "headers": { "Content-Type": "application/json" }
+      },
+      "End": true
+    },
+
+    "PrepararRespuestaErrorValidarHash": {
+      "Type": "Pass",
+      "Parameters": {
+        "codigoError": 403,
+        "mensajeUsuario": "No pudimos procesar tu información, por favor inténtalo mas tarde",
+        "mensajeSistema": "Información incompleta o inconsistente"
+      },
+      "ResultPath": "$.respuestaError",
+      "Next": "ErrorValidarHash"
+    },
+    
+    "ErrorValidarHash": {
+      "Type": "Pass",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "States.JsonToString($.respuestaError)",
+        "headers": { "Content-Type": "application/json" }
+      },
+      "End": true
+    },
+
+    "ErrorCrearHash": {
+      "Type": "Pass",
+      "Parameters": {
+        "statusCode": 500,
+        "body": { 
+          "codigoError": 9006, 
+          "mensajeUsuario": "No pudimos procesar tu información, por favor inténtalo mas tarde",
+          "mensajeSistema": "Información incompleta o inconsistente"
+        },
+        "headers": { "Content-Type": "application/json" }
+      },
+      "End": true
+    },
+
+    "ErrorBorrarHash": {
+      "Type": "Pass",
+      "Parameters": {
+        "statusCode": 500,
+        "body": { 
+          "codigoError": 9005, 
+          "mensajeUsuario": "No pudimos procesar tu información, por favor inténtalo mas tarde",
+          "mensajeSistema": "Información incompleta o inconsistente"
+        },
+        "headers": { "Content-Type": "application/json" }
+      },
+      "End": true
+    }
+  }
+}
+

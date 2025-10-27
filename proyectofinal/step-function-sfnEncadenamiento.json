@@ -1,0 +1,328 @@
+{
+  "Comment": "Step Function para Encadenamiento - Flujo: DetalleFlujo → Predecesor → Petición → Sucesor → MapeoFinal",
+  "StartAt": "fnInterDetalleFlujoEncadenamiento",
+  "States": {
+    "fnInterDetalleFlujoEncadenamiento": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterDetalleFlujoEncadenamiento",
+      "Comment": "Paso 1: Obtener configuración del flujo y determinar encadenamiento",
+      "Parameters": {
+        "body.$": "$.body",
+        "headers.$": "$.headers",
+        "authorizerContext.$": "$.authorizerContext",
+        "resource.$": "$.resource",
+        "originalInput.$": "$"
+      },
+      "ResultPath": "$.detalleFlujoResult",
+      "Next": "EvaluarRespuestaDetalleFlujo",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ErrorDetalleFlujo",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+
+    "EvaluarRespuestaDetalleFlujo": {
+      "Type": "Choice",
+      "Comment": "Evaluar si la respuesta del detalle flujo es exitosa para continuar con encadenamiento",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$.detalleFlujoResult.body",
+              "IsPresent": true
+            },
+            {
+              "Variable": "$.detalleFlujoResult.body.codigoError",
+              "NumericEquals": 0
+            }
+          ],
+          "Next": "fnInterPredecesorEncadenamiento"
+        }
+      ],
+      "Default": "ErrorDetalleFlujo"
+    },
+
+    "fnInterPredecesorEncadenamiento": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterPredecesorEncadenamiento",
+      "Comment": "Paso 2: Validar predecesores del encadenamiento",
+      "Parameters": {
+        "detalleFlujoResult.$": "$.detalleFlujoResult",
+        "headers.$": "$.headers"
+      },
+      "ResultPath": "$.predecesorResult",
+      "Next": "EvaluarRespuestaPredecesor"
+    },
+
+    "EvaluarRespuestaPredecesor": {
+      "Type": "Choice",
+      "Comment": "Evaluar si la validación de predecesores fue exitosa",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$.predecesorResult",
+              "IsPresent": true
+            },
+            {
+              "Variable": "$.predecesorResult.codigoError",
+              "NumericEquals": 0
+            }
+          ],
+          "Next": "fnInterPeticionEncadenamiento"
+        }
+      ],
+      "Default": "PrepararRespuestaPredecesorError"
+    },
+
+    "PrepararRespuestaPredecesorError": {
+      "Type": "Pass",
+      "Comment": "Preparar la respuesta de error del servicio",
+      "Parameters": {
+        "codigoError.$": "$.predecesorResult.codigoError",
+        "mensajeUsuario.$": "$.predecesorResult.mensajeUsuario",
+        "mensajeSistema.$": "$.predecesorResult.mensajeSistema"
+      },
+      "ResultPath": "$.respuestaError",
+      "Next": "RetornarRespuestaError"
+    },
+
+    "fnInterPeticionEncadenamiento": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterPeticionEncadenamiento",
+      "Comment": "Paso 3: Ejecutar petición principal del encadenamiento",
+      "Parameters": {
+        "body": {
+          "detalleFlujoResult.$": "$.detalleFlujoResult",
+          "originalBody.$": "$.body",
+          "originalHeaders.$": "$.headers",
+          "authorizerContext.$": "$.authorizerContext",
+          "caracteresBloqueados": "<,>,*,?"
+        }
+      },
+      "ResultPath": "$.servicioResult",
+      "Next": "EvaluarRespuestaPeticion",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ErrorPeticion",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+
+    "EvaluarRespuestaPeticion": {
+      "Type": "Choice",
+      "Comment": "Evaluar si la petición fue exitosa para continuar con sucesor - Maneja tanto NumericEquals como StringEquals",
+      "Choices": [
+        {
+          "Or": [
+            {
+              "And": [
+                {
+                  "Variable": "$.servicioResult",
+                  "IsPresent": true
+                },
+                {
+                  "Variable": "$.servicioResult.codigoError",
+                  "NumericEquals": 0
+                }
+              ]
+            },
+            {
+              "And": [
+                {
+                  "Variable": "$.servicioResult",
+                  "IsPresent": true
+                },
+                {
+                  "Variable": "$.servicioResult.codigoError",
+                  "StringEquals": "0"
+                }
+              ]
+            }
+          ],
+          "Next": "fnInterSucesorEncadenamiento"
+        }
+      ],
+      "Default": "PrepararRespuestaError"
+    },
+
+    "PrepararRespuestaError": {
+      "Type": "Pass",
+      "Comment": "Preparar la respuesta de error del servicio",
+      "Parameters": {
+        "codigoError.$": "$.servicioResult.data.codigoError",
+        "mensajeUsuario.$": "$.servicioResult.data.mensajeUsuario",
+        "mensajeSistema.$": "$.servicioResult.data.mensajeSistema"
+      },
+      "ResultPath": "$.respuestaError",
+      "Next": "RetornarRespuestaError"
+    },
+
+    "RetornarRespuestaError": {
+      "Type": "Pass",
+      "Comment": "Retornar respuesta de error del servicio",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "States.JsonToString($.respuestaError)",
+        "headers": {
+          "referrer-policy": "no-referrer",
+          "content-security-policy": "default-src 'self';",
+          "x-content-type-options": "nosniff",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Content-Type": "application/json"
+        }
+      },
+      "End": true
+    },
+
+
+    "fnInterSucesorEncadenamiento": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterSucesorEncadenamiento",
+      "Comment": "Paso 4: Procesar sucesor del encadenamiento (no bloquea transacción)",
+      "Parameters": {
+        "detalleFlujoResult.$": "$.detalleFlujoResult",
+        "headers.$": "$.headers"
+      },
+      "ResultPath": "$.sucesorResult",
+      "Next": "EvaluarRespuestaSucesor",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "fnInterEncadenamientoMapeoFinal",
+          "ResultPath": "$.sucesorError"
+        }
+      ]
+    },
+
+    "EvaluarRespuestaSucesor": {
+      "Type": "Choice",
+      "Comment": "Evaluar si el sucesor se procesó correctamente (siempre continúa)",
+      "Choices": [
+        {
+          "Variable": "$.sucesorResult",
+          "IsPresent": true,
+          "Next": "fnInterEncadenamientoMapeoFinal"
+        }
+      ],
+      "Default": "fnInterEncadenamientoMapeoFinal"
+    },
+
+    "fnInterEncadenamientoMapeoFinal": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterEncadenamientoMapeoFinal",
+      "Comment": "Mapear respuesta final del encadenamiento (similar a fnInterPrepararRespuestaFinalMonetOtro)",
+      "Parameters": {
+        "bodyData.$": "$"
+      },
+      "ResultPath": "$.respuestaFinal",
+      "Next": "RetornarRespuestaExitosa",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ErrorMapeoFinal",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+
+    "RetornarRespuestaExitosa": {
+      "Type": "Pass",
+      "Comment": "Retornar respuesta exitosa del encadenamiento completo",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "States.JsonToString($.respuestaFinal)",
+        "headers": {
+          "referrer-policy": "no-referrer",
+          "content-security-policy": "default-src 'self';",
+          "x-content-type-options": "nosniff",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Content-Type": "application/json",
+          "X-Flow-Type": "encadenamiento",
+          "X-Encadenamiento": "completado",
+          "X-Flow-Completed": "true"
+        }
+      },
+      "End": true
+    },
+
+    "ErrorDetalleFlujo": {
+      "Type": "Pass",
+      "Comment": "Error en el detalle flujo del encadenamiento",
+      "Parameters": {
+        "statusCode": 200,
+        "body": {
+          "codigoError": 9001,
+          "mensajeUsuario": "No pudimos procesar tu información, por favor inténtalo más tarde",
+          "mensajeSistema": "Error en la configuración del encadenamiento",
+          "encadenamiento": {
+            "error": true,
+            "etapa": "detalleFlujo",
+            "timestamp": "$$.State.EnteredTime"
+          }
+        },
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Flow-Type": "encadenamiento-error"
+        }
+      },
+      "End": true
+    },
+
+    "ErrorPeticion": {
+      "Type": "Pass",
+      "Comment": "Error en la petición del encadenamiento",
+      "Parameters": {
+        "statusCode": 200,
+        "body": {
+          "codigoError": 9008,
+          "mensajeUsuario": "No pudimos procesar tu información, por favor inténtalo más tarde",
+          "mensajeSistema": "Error en la ejecución de la petición del encadenamiento",
+          "encadenamiento": {
+            "error": true,
+            "etapa": "peticion"
+          }
+        },
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Flow-Type": "encadenamiento-error"
+        }
+      },
+      "End": true
+    },
+
+    "ErrorMapeoFinal": {
+      "Type": "Pass",
+      "Comment": "Error en el mapeo final del encadenamiento",
+      "Parameters": {
+        "statusCode": 200,
+        "body": {
+          "codigoError": 9009,
+          "mensajeUsuario": "No pudimos procesar tu información, por favor inténtalo más tarde",
+          "mensajeSistema": "Error en el mapeo de respuesta final del encadenamiento",
+          "encadenamiento": {
+            "error": true,
+            "etapa": "mapeoFinal",
+            "timestamp": "$$.State.EnteredTime"
+          }
+        },
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Flow-Type": "encadenamiento-error"
+        }
+      },
+      "End": true
+    }
+  }
+}

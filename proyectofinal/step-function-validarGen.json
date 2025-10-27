@@ -1,0 +1,632 @@
+{
+  "Comment": "Step Function para el Interceptor de Seguridad - Flujo completo según diagrama de arquitectura",
+  "StartAt": "fnInterDetalleFlujoValidarGen",
+  "States": {
+    "fnInterDetalleFlujoValidarGen": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterDetalleFlujoValidarGen",
+      "Comment": "Paso 1: Ejecutar transferencia y validar datos de detalle flujo",
+      "Parameters": {
+        "body.$": "$.body",
+        "headers.$": "$.headers",
+        "authorizerContext.$": "$.authorizerContext",
+        "resource.$": "$.resource",
+        "originalInput.$": "$"
+      },
+      "ResultPath": "$.detalleFlujoResult",
+      "Next": "EvaluarRespuestaDetalleFlujo",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PrepararRespuestaErrorDetalleFlujo",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+
+    "PrepararRespuestaErrorDetalleFlujo": {
+      "Type": "Pass",
+      "Parameters": {
+        "codigoError": 9001,
+        "mensajeUsuario": "No pudimos procesar tu información, por favor inténtalo mas tarde",
+        "mensajeSistema": "Error en la validación del detalle flujo"
+      },
+      "ResultPath": "$.respuestaError",
+      "Next": "ErrorDetalleFlujo"
+    },
+
+    "EvaluarRespuestaDetalleFlujo": {
+      "Type": "Choice",
+      "Comment": "Evaluar si la respuesta del detalle flujo es exitosa y determinar próximo paso",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$.detalleFlujoResult.body",
+              "IsPresent": true
+            },
+            {
+              "Variable": "$.detalleFlujoResult.body.codigoError",
+              "NumericEquals": 0
+            },
+            {
+              "Variable": "$.detalleFlujoResult.body.data.shouldContinue",
+              "BooleanEquals": true
+            }
+          ],
+          "Next": "DeterminarProximaAccion"
+        }
+      ]
+    },
+
+    "DeterminarProximaAccion": {
+      "Type": "Choice",
+      "Comment": "Determinar la próxima acción basada en la configuración del flujo",
+      "Choices": [
+        {
+          "Variable": "$.detalleFlujoResult.body.data.configuracion.validarHash",
+          "BooleanEquals": true,
+          "Next": "fnInterValidarHashGen"
+        },
+        {
+          "Variable": "$.detalleFlujoResult.body.data.configuracion.validarClientId",
+          "BooleanEquals": true,
+          "Next": "fnValidarClientId"
+        },
+        {
+          "Variable": "$.detalleFlujoResult.body.data.configuracion.llamarServicioUrl",
+          "BooleanEquals": true,
+          "Next": "fnInterPeticionGen"
+        },
+        {
+          "Variable": "$.detalleFlujoResult.body.data.configuracion.crearClientId",
+          "BooleanEquals": true,
+          "Next": "GenerarClientidTransf"
+        }
+      ],
+      "Default": "fnInterPeticionGen"
+    },
+
+    "fnInterPeticionGen": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterPeticionGen",
+      "Comment": "Ejecutar el servicio usando fnInterPeticionGen",
+      "Parameters": {
+        "body": {
+          "detalleFlujoResult.$": "$.detalleFlujoResult",
+          "originalBody.$": "$.body",
+          "originalHeaders.$": "$.headers",
+          "authorizerContext.$": "$.authorizerContext",
+          "hashValidationResult.$": "$.validarHashResult",
+          "caracteresBloqueados": "<,>,?"
+        }
+      },
+      "ResultPath": "$.servicioResult",
+      "Next": "EvaluarRespuestaServicio",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PrepararRespuestaErrorServicio",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+
+    "EvaluarRespuestaServicio": {
+      "Type": "Choice",
+      "Comment": "Evaluar respuesta del servicio y determinar si continuar con el flujo",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$.servicioResult",
+              "IsPresent": true
+            },
+            {
+              "Variable": "$.servicioResult.codigoError",
+              "NumericEquals": 0
+            }
+          ],
+          "Next": "DeterminarAccionPostServicio"
+        }
+      ],
+      "Default": "PrepararRespuestaError"
+    },
+
+    "DeterminarAccionPostServicio": {
+      "Type": "Choice",
+      "Comment": "Determinar qué acciones ejecutar después del servicio exitoso - Orden: BorrarHash → BorrarClientId → GenerarClientId",
+      "Choices": [
+        {
+          "Variable": "$.detalleFlujoResult.body.data.configuracion.borrarHash",
+          "BooleanEquals": true,
+          "Next": "fnInterBorrarHashGen"
+        },
+        {
+          "Variable": "$.detalleFlujoResult.body.data.configuracion.borrarClientId",
+          "BooleanEquals": true,
+          "Next": "fnInterBorrarClientIdTransf"
+        }
+
+      ],
+      "Default": "fnInterPrepararRespuestaFinalValidarGen"
+    },
+
+    "fnValidarClientId": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnValidarClientId",
+      "Comment": "Validar ClientId cuando es requerido por la configuración",
+      "Parameters": {
+        "body.$": "$.body",
+        "headers.$": "$.headers",
+        "authorizerContext.$": "$.authorizerContext",
+        "detalleFlujoResponse.$": "$.detalleFlujoResult",
+        "originalHeaders.$": "$.headers"
+      },
+      "ResultPath": "$.validarClientIdResult",
+      "Next": "DeterminarAccionPostValidacion",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ErrorValidarClientId",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+
+    "DeterminarAccionPostValidacion": {
+      "Type": "Choice",
+      "Comment": "Determinar qué hacer después de validar ClientId",
+      "Choices": [
+        {
+          "Variable": "$.detalleFlujoResult.body.data.configuracion.llamarServicioUrl",
+          "BooleanEquals": true,
+          "Next": "fnInterPeticionGen"
+        }
+      ],
+      "Default": "RetornarRespuestaExitosa"
+    },
+
+    "GenerarClientidTransf": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:GenerarClientidTransf",
+      "Comment": "Generar ClientId de autorización cuando es requerido",
+      "Parameters": {
+        "body.$": "$.body",
+        "headers.$": "$.headers",
+        "authorizerContext.$": "$.authorizerContext",
+        "detalleFlujoResponse.$": "$.detalleFlujoResult",
+        "originalHeaders.$": "$.headers",
+        "servicioResult.$": "$.servicioResult"
+      },
+      "ResultPath": "$.clientIdResult",
+      "Next": "EvaluarGeneracionClientId",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ErrorGenerarClientId",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+
+    "EvaluarGeneracionClientId": {
+      "Type": "Choice",
+      "Comment": "Evaluar si la generación de ClientId fue exitosa",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$.clientIdResult.body",
+              "IsPresent": true
+            },
+            {
+              "Variable": "$.clientIdResult.body.codigoError",
+              "NumericEquals": 0
+            }
+          ],
+          "Next": "DeterminarAccionPostClientId"
+        }
+      ],
+      "Default": "ErrorGeneracionClientId"
+    },
+
+    "DeterminarAccionPostClientId": {
+      "Type": "Pass",
+      "Comment": "Fin del flujo después de generar ClientId",
+      "ResultPath": "$.flujoCompletado",
+      "Result": "Flujo completado exitosamente",
+      "Next": "PrepararRespuestaFinal"
+    },
+
+    "fnInterPrepararRespuestaFinalValidarGen": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterPrepararRespuestaFinalValidarGen",
+      "Comment": "Generar ClientId de autorización cuando es requerido",
+      "Parameters": {
+        "bodyData.$": "$"
+      },
+      "ResultPath": "$.respuestaFinal",
+      "Next": "RespuestaFinalPostServicio",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ErrorGenerarClientId",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+
+    "RespuestaFinalPostServicio": {
+      "Type": "Pass",
+      "Comment": "Retornar respuesta exitosa después de completar todo el flujo",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "States.JsonToString($.respuestaFinal)",
+        "headers": {
+          "referrer-policy": "no-referrer",
+          "content-security-policy": "default-src 'self';",
+          "x-content-type-options": "nosniff",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Content-Type": "application/json",
+          "X-Flow-Completed": "true",
+          "X-Original-Headers-Processed": "true"
+        }
+      },
+      "End": true
+    },
+
+    "PrepararRespuestaFinal": {
+      "Type": "Pass",
+      "Comment": "Preparar la respuesta final para API Gateway",
+      "Parameters": {
+        "codigoError": 0,
+        "mensajeSistema": "TRANSACCION OK",
+        "mensajeUsuario": "TRANSACCION OK",
+        "fechaTransaccion.$": "$.servicioResult.data.fechaTransaccion",
+        "fechaProceso.$": "$.servicioResult.data.fechaProceso",
+        "secuenciaTransaccion.$": "$.servicioResult.data.secuenciaTransaccion",
+        "clientId.$": "$.clientIdResult.body.data.clientId"
+      },
+      "ResultPath": "$.respuestaFinal",
+      "Next": "RetornarRespuestaExitosa"
+    },
+
+    "fnInterBorrarClientIdTransf": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterBorrarClientIdTransf",
+      "Comment": "Borrar ClientId después de uso",
+      "Parameters": {
+        "headers": {
+          "identificacion.$": "$.headers.identificacion",
+          "clientId.$": "$.headers.clientId",
+          "Content-Type": "application/json"
+        },
+        "originalHeaders.$": "$.headers",
+        "authorizerContext.$": "$.authorizerContext",
+        "detalleFlujoResponse.$": "$.detalleFlujoResult"
+      },
+      "ResultPath": "$.borrarClientIdResult",
+      "Next": "GenerarClientidTransf",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ErrorBorrarClientId",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+
+
+    "fnInterBorrarHashGen": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterBorrarHashGen",
+      "Comment": "Borrar Hash de seguridad cuando es requerido",
+      "Parameters": {
+        "hashOrigen.$": "$.detalleFlujoResult.body.data.configuracion.hashOrigen",
+        "headers": {
+          "identificacion.$": "$.headers.identificacion",
+          "clientId.$": "$.headers.clientId",
+          "Content-Type": "application/json"
+        },
+        "originalHeaders.$": "$.headers",
+        "authorizerContext.$": "$.authorizerContext",
+        "detalleFlujoResponse.$": "$.detalleFlujoResult",
+        "servicioResult.$": "$.servicioResult"
+      },
+      "ResultPath": "$.borrarHashResult",
+      "Next": "DeterminarAccionPostBorrarHash",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PrepararRespuestaErrorBorrarHash",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+
+
+    "DeterminarAccionPostBorrarHash": {
+      "Type": "Choice",
+      "Comment": "Determinar qué acciones ejecutar luego de borrar el hash",
+      "Choices": [
+        {
+          "Variable": "$.detalleFlujoResult.body.data.configuracion.borrarClientId",
+          "BooleanEquals": true,
+          "Next": "fnInterBorrarClientIdTransf"
+        }
+
+      ],
+      "Default": "fnInterPrepararRespuestaFinalValidarGen"
+    },
+
+    "fnInterValidarHashGen": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterValidarHashGen",
+      "Comment": "Validar Hash de seguridad cuando es requerido",
+      "Parameters": {
+        "body.$": "States.JsonToString($.body)",
+        "headers": {
+          "identificacion.$": "$.headers.identificacion",
+          "clientId.$": "$.headers.clientId",
+          "Content-Type": "application/json"
+        },
+        "hashOrigen.$": "$.detalleFlujoResult.body.data.configuracion.hashOrigen",
+        "originalHeaders.$": "$.headers",
+        "authorizerContext.$": "$.authorizerContext",
+        "detalleFlujoResponse.$": "$.detalleFlujoResult"
+      },
+      "ResultPath": "$.validarHashResult",
+      "Next": "DeterminarAccionPostValidarHash",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PrepararRespuestaErrorValidarHash",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+
+    "DeterminarAccionPostValidarHash": {
+      "Type": "Choice",
+      "Comment": "Determinar qué hacer después de validar Hash",
+      "Choices": [
+        {
+          "Variable": "$.detalleFlujoResult.body.data.configuracion.llamarServicioUrl",
+          "BooleanEquals": true,
+          "Next": "fnInterPeticionGen"
+        }
+      ],
+      "Default": "RetornarRespuestaExitosa"
+    },
+
+    "RetornarRespuestaExitosa": {
+      "Type": "Pass",
+      "Comment": "Retornar respuesta exitosa después de completar todo el flujo",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "States.JsonToString($.respuestaFinal)",
+        "headers": {
+          "referrer-policy": "no-referrer",
+          "content-security-policy": "default-src 'self';",
+          "x-content-type-options": "nosniff",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Content-Type": "application/json",
+          "X-Flow-Completed": "true",
+          "X-Original-Headers-Processed": "true"
+        }
+      },
+      "End": true
+    },
+
+    "PrepararRespuestaError": {
+      "Type": "Pass",
+      "Comment": "Preparar la respuesta de error del servicio",
+      "Parameters": {
+        "codigoError.$": "$.servicioResult.codigoError",
+        "mensajeUsuario.$": "$.servicioResult.mensajeUsuario",
+        "mensajeSistema.$": "$.servicioResult.mensajeSistema"
+      },
+      "ResultPath": "$.respuestaError",
+      "Next": "RetornarRespuestaError"
+    },
+
+    "RetornarRespuestaError": {
+      "Type": "Pass",
+      "Comment": "Retornar respuesta de error del servicio",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "States.JsonToString($.respuestaError)",
+        "headers": {
+          "referrer-policy": "no-referrer",
+          "content-security-policy": "default-src 'self';",
+          "x-content-type-options": "nosniff",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Content-Type": "application/json"
+        }
+      },
+      "End": true
+    },
+
+
+    "ErrorDetalleFlujo": {
+      "Type": "Pass",
+      "Comment": "Error en el detalle flujo",
+      "Parameters": {
+        "statusCode": 500,
+        "body.$": "States.JsonToString($.respuestaError)",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "End": true
+    },
+
+    "ErrorGenerarClientId": {
+      "Type": "Pass",
+      "Comment": "Error al generar ClientId",
+      "Parameters": {
+        "statusCode": 500,
+        "body": {
+          "codigoError": 9002,
+          "mensajeUsuario": "Error al generar cliente de autorización",
+          "mensajeSistema.$": "$.error.Cause"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "End": true
+    },
+
+    "ErrorGeneracionClientId": {
+      "Type": "Pass",
+      "Comment": "Error en respuesta de generación ClientId",
+      "Parameters": {
+        "statusCode": 500,
+        "body": {
+          "codigoError": 9003,
+          "mensajeUsuario": "Falló la generación del cliente de autorización",
+          "mensajeSistema.$": "$.clientIdResult.body.mensaje"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "End": true
+    },
+
+    "ErrorBorrarClientId": {
+      "Type": "Pass",
+      "Comment": "Error al borrar ClientId",
+      "Parameters": {
+        "statusCode": 500,
+        "body": {
+          "codigoError": 9004,
+          "mensajeUsuario": "Error al limpiar cliente de autorización",
+          "mensajeSistema.$": "$.error.Cause"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "End": true
+    },
+
+    "PrepararRespuestaErrorBorrarHash": {
+      "Type": "Pass",
+      "Parameters": {
+        "codigoError": 9005,
+        "mensajeUsuario": "No pudimos procesar tu información, por favor inténtalo mas tarde",
+        "mensajeSistema": "No se pudo completar un proceso de autorización"
+      },
+      "ResultPath": "$.respuestaError",
+      "Next": "ErrorBorrarHash"
+    },
+
+    "ErrorBorrarHash": {
+      "Type": "Pass",
+      "Comment": "Error al borrar Hash",
+      "Parameters": {
+        "statusCode": 500,
+        "body.$": "States.JsonToString($.respuestaError)",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "End": true
+    },
+
+    "PrepararRespuestaErrorValidarHash": {
+      "Type": "Pass",
+      "Parameters": {
+        "codigoError": 403,
+        "mensajeUsuario": "No pudimos procesar tu información, por favor inténtalo mas tarde",
+        "mensajeSistema": "Información incompleta o inconsistente"
+      },
+      "ResultPath": "$.respuestaError",
+      "Next": "ErrorValidarHash"
+    },
+
+    "ErrorValidarHash": {
+      "Type": "Pass",
+      "Comment": "Error al validar Hash - Fraude detectado",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "States.JsonToString($.respuestaError)",
+        "headers": {
+          "referrer-policy": "no-referrer",
+          "content-security-policy": "default-src 'self';",
+          "x-content-type-options": "nosniff",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Content-Type": "application/json"
+        }
+      },
+      "End": true
+    },
+
+    "ErrorValidarClientId": {
+      "Type": "Pass",
+      "Comment": "Error al validar ClientId - Fraude detectado",
+      "Parameters": {
+        "statusCode": 200,
+        "body": {
+          "codigoError": 403,
+          "mensajeUsuario": "Cliente de autorización inválido - Acceso denegado",
+          "mensajeSistema": "Fraude detectado: Cliente de autorización no válido",
+          "shouldContinue": false,
+          "timestamp": "$.State.EnteredTime"
+        },
+        "headers": {
+          "referrer-policy": "no-referrer",
+          "content-security-policy": "default-src 'self';",
+          "x-content-type-options": "nosniff",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Content-Type": "application/json",
+          "X-Security-Status": "fraud-detected"
+        }
+      },
+      "End": true
+    },
+
+    "PrepararRespuestaErrorServicio": {
+      "Type": "Pass",
+      "Comment": "Preparar la respuesta de error del servicio",
+      "Parameters": {
+        "codigoError": 9008,
+        "mensajeUsuario": "No pudimos procesar tu información, por favor inténtalo mas tarde",
+        "mensajeSistema.$": "$.error.Cause"
+      },
+      "ResultPath": "$.respuestaError",
+      "Next": "ErrorServicio"
+    },
+
+    "ErrorServicio": {
+      "Type": "Pass",
+      "Comment": "Error en el servicio X parametrizable",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "States.JsonToString($.respuestaError)",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "End": true
+    }
+  }
+}

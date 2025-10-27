@@ -1,0 +1,193 @@
+{
+  "Comment": "Step Function para obtener tarifa - Flujo: ValidarContextoAutorizador -> fnObtenerTarifaTransf -> fnInterCrearHashTransf",
+  "StartAt": "ValidarContextoAutorizador",
+  "States": {
+    "ValidarContextoAutorizador": {
+      "Type": "Choice",
+      "Comment": "Verificar si el contexto del autorizador indica validación exitosa",
+      "Choices": [
+        {
+          "Variable": "$.authorizerContext.validated",
+          "StringEquals": "true",
+          "Next": "fnObtenerTarifaTransf"
+        }
+      ],
+      "Default": "ErrorValidacionClientId"
+    },
+
+    "fnObtenerTarifaTransf": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnObtenerTarifaTransf",
+      "Comment": "Obtener productos del cliente",
+      "Parameters": {
+        "body.$": "$.body",
+        "headers.$": "$.headers",
+        "authorizerContext.$": "$.authorizerContext"
+      },
+      "ResultPath": "$.obtenerProductosResult",
+      "Next": "EvaluarObtenerProductos",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PrepararErrorObtenerTarifa",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+
+    "EvaluarObtenerProductos": {
+      "Type": "Choice",
+      "Comment": "Evaluar si la obtención de productos fue exitosa",
+      "Choices": [
+        {
+          "Variable": "$.obtenerProductosResult.statusCode",
+          "NumericEquals": 200,
+          "Next": "fnInterCrearHashTransf"
+        }
+      ],
+      "Default": "PrepararErrorObtenerTarifa"
+    },
+
+    "PrepararErrorObtenerTarifa": {
+      "Type": "Pass",
+      "Comment": "Preparar la respuesta de error del servicio",
+      "Parameters": {
+        "codigoError": 9999,
+        "mensajeUsuario": "No pudimos procesar tu información, por favor inténtalo mas tarde",
+        "mensajeSistema.$": "$.obtenerProductosResult.body.mensajeSistema"
+      },
+      "ResultPath": "$.respuestaError",
+      "Next": "ErrorObtenerTarifa"
+    },
+
+    "fnInterCrearHashTransf": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${aws:region}:${aws:accountId}:function:fnInterCrearHashTransf",
+      "Comment": "Generar hash de seguridad usando los datos del clientId JWT",
+      "Parameters": {
+        "body.$": "States.JsonToString($.obtenerProductosResult.body.data)",
+        "headers.$": "$.headers",
+        "authorizerContext.$": "$.authorizerContext"
+      },
+      "ResultPath": "$.generarHashResult",
+      "Next": "PrepararRespuestaFinalTarifa",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ErrorGenerarHash",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+
+    "PrepararRespuestaFinalTarifa": {
+      "Type": "Pass",
+      "Comment": "Preparar la respuesta final con la tarifa y el hash generado",
+      "Parameters": {
+        "codigoError": 0,
+        "mensajeUsuario": "TRANSACCION EXITOSA",
+        "mensajeSistema": "TRANSACCION EXITOSA",
+        "tarifa.$": "$.obtenerProductosResult.body.data.tarifa",
+        "moneda.$": "$.obtenerProductosResult.body.data.moneda",
+        "codigoMoneda.$": "$.obtenerProductosResult.body.data.codigoMoneda",
+        "referenciaRes.$": "$.obtenerProductosResult.body.data.referenciaRes",
+        "hash.$": "$.generarHashResult.hash"
+      },
+      "ResultPath": "$.respuestaFinal",
+      "Next": "RetornarRespuestaExitosaTarifa"
+    },
+
+    "RetornarRespuestaExitosaTarifa": {
+      "Type": "Pass",
+      "Comment": "Retornar respuesta exitosa del flujo obtener tarifa",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "States.JsonToString($.respuestaFinal)",
+        "headers": {
+          "referrer-policy": "no-referrer",
+          "content-security-policy": "default-src 'self';",
+          "x-content-type-options": "nosniff",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Content-Type": "application/json",
+          "X-Flow-Type": "obtenerTarifa",
+          "X-Hash-Generated": "true"
+        }
+      },
+      "End": true
+    },
+
+    "ErrorValidacionClientId": {
+      "Type": "Pass",
+      "Comment": "Error en la validación del ClientId por el Authorizer",
+      "Parameters": {
+        "statusCode": 200,
+        "body": {
+          "codigoError": 9002,
+          "mensajeUsuario": "Error en validación de autorización",
+          "mensajeSistema": "ClientId o identificación inválidos",
+          "authorizerError.$": "$.authorizerContext.error",
+          "timestamp.$": "$$.State.EnteredTime"
+        },
+        "headers": {
+          "referrer-policy": "no-referrer",
+          "content-security-policy": "default-src 'self';",
+          "x-content-type-options": "nosniff",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Content-Type": "application/json"
+        }
+      },
+      "End": true
+    },
+
+    "ErrorObtenerTarifa": {
+      "Type": "Pass",
+      "Comment": "Error al obtener productos",
+      "Parameters": {
+        "statusCode": 200,
+        "body.$": "States.JsonToString($.respuestaError)",
+        "headers": {
+          "referrer-policy": "no-referrer",
+          "content-security-policy": "default-src 'self';",
+          "x-content-type-options": "nosniff",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Content-Type": "application/json"
+        }
+      },
+      "End": true
+    },
+
+    "ErrorGenerarHash": {
+      "Type": "Pass",
+      "Comment": "Error al generar hash de seguridad",
+      "Parameters": {
+        "statusCode": 200,
+        "body": {
+          "codigoError": 9004,
+          "mensajeUsuario": "Error al generar hash de seguridad",
+          "mensajeSistema.$": "$.error.Cause",
+          "timestamp.$": "$$.State.EnteredTime"
+        },
+        "headers": {
+          "referrer-policy": "no-referrer",
+          "content-security-policy": "default-src 'self';",
+          "x-content-type-options": "nosniff",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Content-Type": "application/json"
+        }
+      },
+      "End": true
+    }
+  }
+}
