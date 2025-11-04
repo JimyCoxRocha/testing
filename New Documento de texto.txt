@@ -345,30 +345,33 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
+    fnInterDetalleFlujoControlMonetOtro.node.addDependency(fnInterDetalleFlujoControlMonetOtroLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterDetalleFlujoEncadenamientoLogGroup = createLambdaLogGroup('fnInterDetalleFlujoEncadenamiento');
+    
     const fnInterDetalleFlujoEncadenamiento = new NodejsFunction(this, `${this.stackName}-fnInterDetalleFlujoEncadenamiento`, {
-       functionName: `${this.stackName}-fnInterDetalleFlujoEncadenamiento`,
+      functionName: `${this.stackName}-fnInterDetalleFlujoEncadenamiento`,
       description: 'Lambda para obtener detalle flujo parametrizable',
-       entry: path.join(__dirname, '/../src/functions/fnInterDetalleFlujo.ts'),
+      entry: path.join(__dirname, '/../src/functions/fnInterDetalleFlujo.ts'),
       handler: 'fnInterDetalleFlujo',
-       timeout: cdk.Duration.seconds(timeOutAltaTrx),
+      timeout: cdk.Duration.seconds(timeOutAltaTrx),
       environment: {
         NODE_OPTIONS: '--enable-source-maps',
         STAGE: config.STAGE,
         LAMBDA_TIMEOUT: `${timeOutAltaTrx}`,
         SECRET_NAME: config.SECRET_NAME,
-        // Usar variables del proyecto principal para transferencia
         URL_SERVICIO_TRANSFERENCIA: config.URL_SERVICIO_TRANSFERENCIA,
         DB_DETALLE_PARAMETRIZABLE: `${this.stackName}-interdetalleflujo`
-
-
       },
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
+    fnInterDetalleFlujoEncadenamiento.node.addDependency(fnInterDetalleFlujoEncadenamientoLogGroup);
 
-
-
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterDetalleFlujoValidarSegOtpLogGroup = createLambdaLogGroup('fnInterDetalleFlujoValidarSegOtp');
+    
     const fnInterDetalleFlujoValidarSegOtp = new NodejsFunction(this, `${this.stackName}-fnInterDetalleFlujoValidarSegOtp`, {
        functionName: `${this.stackName}-fnInterDetalleFlujoValidarSegOtp`,
       description: 'Lambda para obtener detalle flujo parametrizable',
@@ -389,10 +392,14 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
+    fnInterDetalleFlujoValidarSegOtp.node.addDependency(fnInterDetalleFlujoValidarSegOtpLogGroup);
 
     interDetalleDb.grantReadWriteData(fnInterDetalleFlujoValidarGen);
 
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnHabilitarAutorizadorServiciosLogGroup = createLambdaLogGroup('fnHabilitarAutorizadorServicios');
+    
     // Función Lambda para obtener configuración de servicios HTTP
     const fnHabilitarAutorizadorServicios = new NodejsFunction(this, `${this.stackName}-fnHabilitarAutorizadorServicios`, {
       functionName: `${this.stackName}-fnHabilitarAutorizadorServicios`,
@@ -409,6 +416,7 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: 256,
       ...lambdaProps,
     });
+    fnHabilitarAutorizadorServicios.node.addDependency(fnHabilitarAutorizadorServiciosLogGroup);
    
     // Dar permisos de lectura a la tabla
     interDetalleDb.grantReadData(fnHabilitarAutorizadorServicios);
@@ -425,6 +433,9 @@ export class BMPIniciarSesion extends cdk.Stack {
       ],
       resources: ['arn:aws:apigateway:*::/restapis/*']
     }));
+    
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const GenerarClientidTransfLogGroup = createLambdaLogGroup('GenerarClientidTransf');
     
      const GenerarClientidTransf = new NodejsFunction(this, `${this.stackName}-GenerarClientidTransf`, {
        functionName: `${this.stackName}-GenerarClientidTransf`,
@@ -444,7 +455,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
+    GenerarClientidTransf.node.addDependency(GenerarClientidTransfLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const GenerarClientidControlSegurOtroLogGroup = createLambdaLogGroup('GenerarClientidControlSegurOtro');
+    
     const GenerarClientidControlSegurOtro = new NodejsFunction(this, `${this.stackName}-GenerarClientidControlSegurOtro`, {
        functionName: `${this.stackName}-GenerarClientidControlSegurOtro`,
       description: 'Lambda para generar ClientId de autorización',
@@ -463,7 +478,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
+    GenerarClientidControlSegurOtro.node.addDependency(GenerarClientidControlSegurOtroLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const GenerarClientidMonetOtroLogGroup = createLambdaLogGroup('GenerarClientidMonetOtro');
+    
     const GenerarClientidMonetOtro = new NodejsFunction(this, `${this.stackName}-GenerarClientidMonetOtro`, {
        functionName: `${this.stackName}-GenerarClientidMonetOtro`,
       description: 'Lambda para generar ClientId de autorización',
@@ -482,7 +501,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
+    GenerarClientidMonetOtro.node.addDependency(GenerarClientidMonetOtroLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterBorrarClientIdTransfLogGroup = createLambdaLogGroup('fnInterBorrarClientIdTransf');
+    
      const fnInterBorrarClientIdTransf = new NodejsFunction(this, `${this.stackName}-fnInterBorrarClientIdTransf`, {
        functionName: `${this.stackName}-fnInterBorrarClientIdTransf`,
       description: 'Lambda para borrar ClientId después de uso',
@@ -500,6 +523,9 @@ export class BMPIniciarSesion extends cdk.Stack {
       ...lambdaProps,
     });
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterBorrarHashTransfLogGroup = createLambdaLogGroup('fnInterBorrarHashTransf');
+    
      const fnInterBorrarHashTransf = new NodejsFunction(this, `${this.stackName}-fnInterBorrarHashTransf`, {
        functionName: `${this.stackName}-fnInterBorrarHashTransf`,
       description: 'Lambda para borrar Hash de seguridad',
@@ -516,7 +542,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
+    fnInterBorrarHashTransf.node.addDependency(fnInterBorrarHashTransfLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterValidarHashTransfLogGroup = createLambdaLogGroup('fnInterValidarHashTransf');
+    
      const fnInterValidarHashTransf = new NodejsFunction(this, `${this.stackName}-fnInterValidarHashTransf`, {
        functionName: `${this.stackName}-fnInterValidarHashTransf`,
       description: 'Lambda para validar Hash de seguridad',
@@ -535,7 +565,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
+    fnInterValidarHashTransf.node.addDependency(fnInterValidarHashTransfLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterValidarHashGenLogGroup = createLambdaLogGroup('fnInterValidarHashGen');
+    
      const fnInterValidarHashGen = new NodejsFunction(this, `${this.stackName}-fnInterValidarHashGen`, {
        functionName: `${this.stackName}-fnInterValidarHashGen`,
       description: 'Lambda para validar Hash de seguridad',
@@ -555,8 +589,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    fnInterValidarHashGen.node.addDependency(fnInterValidarHashGenLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterBorrarHashGenLogGroup = createLambdaLogGroup('fnInterBorrarHashGen');
+    
      const fnInterBorrarHashGen = new NodejsFunction(this, `${this.stackName}-fnInterBorrarHashGen`, {
        functionName: `${this.stackName}-fnInterBorrarHashGen`,
       description: 'Lambda para borrar Hash de seguridad',
@@ -644,8 +681,13 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
+    const fnInterPeticionEncadenamientoLogGroup = createLambdaLogGroup('fnInterPeticionEncadenamiento');
+    fnInterPeticionEncadenamiento.node.addDependency(fnInterPeticionEncadenamientoLogGroup);
 
     // === OTP: lambdas auxiliares ===
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterValidarHashSegurOTPLogGroup = createLambdaLogGroup('fnInterValidarHashSegurOTP');
+    
     const fnInterValidarHashSegurOTP = new NodejsFunction(this, `${this.stackName}-fnInterValidarHashSegurOTP`, {
       functionName: `${this.stackName}-fnInterValidarHashSegurOTP`,
       description: 'Lambda para validar Hash de seguridad (OTP)',
@@ -664,8 +706,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    fnInterValidarHashSegurOTP.node.addDependency(fnInterValidarHashSegurOTPLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterBorrarHashSegurOTPLogGroup = createLambdaLogGroup('fnInterBorrarHashSegurOTP');
+    
     const fnInterBorrarHashSegurOTP = new NodejsFunction(this, `${this.stackName}-fnInterBorrarHashSegurOTP`, {
       functionName: `${this.stackName}-fnInterBorrarHashSegurOTP`,
       description: 'Lambda para borrar Hash de seguridad (OTP)',
@@ -683,8 +728,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    fnInterBorrarHashSegurOTP.node.addDependency(fnInterBorrarHashSegurOTPLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterCrearHashSegurOTPLogGroup = createLambdaLogGroup('fnInterCrearHashSegurOTP');
+    
     const fnInterCrearHashSegurOTP = new NodejsFunction(this, `${this.stackName}-fnInterCrearHashSegurOTP`, {
       functionName: `${this.stackName}-fnInterCrearHashSegurOTP`,
       description: 'Lambda para crear Hash de seguridad (OTP)',
@@ -703,8 +751,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    fnInterCrearHashSegurOTP.node.addDependency(fnInterCrearHashSegurOTPLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterCrearHashControlMonetOtroLogGroup = createLambdaLogGroup('fnInterCrearHashControlMonetOtro');
+    
     const fnInterCrearHashControlMonetOtro = new NodejsFunction(this, `${this.stackName}-fnInterCrearHashControlMonetOtro`, {
       functionName: `${this.stackName}-fnInterCrearHashControlMonetOtro`,
       description: 'Lambda para crear Hash en control monet otro',
@@ -725,7 +776,10 @@ export class BMPIniciarSesion extends cdk.Stack {
     });
     
 
-    // Permisos para la tabla hashcachetrans
+          // Permisos para la tabla hashcachetrans
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnEjecutarTransferenciaLogGroup = createLambdaLogGroup('fnEjecutarTransferencia');
+    
     const fnEjecutarTransferencia = new NodejsFunction(this, `${this.stackName}-fnEjecutarTransferencia`, {
       functionName: `${this.stackName}-fnEjecutarTransferencia`,
       description: 'Lambda para ejecutar transferencias según el flujo',
@@ -751,8 +805,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    fnEjecutarTransferencia.node.addDependency(fnEjecutarTransferenciaLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterPeticionGenLogGroup = createLambdaLogGroup('fnInterPeticionGen');
+    
     const fnInterPeticionGen = new NodejsFunction(this, `${this.stackName}-fnInterPeticionGen`, {
       functionName: `${this.stackName}-fnInterPeticionGen`,
       description: 'Lambda para ejecutar transferencias según el flujo',
@@ -777,9 +834,12 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    fnInterPeticionGen.node.addDependency(fnInterPeticionGenLogGroup);
 
      // === OTP: Lambda Validar OTP ===
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterPeticionValidarSegurOtpLogGroup = createLambdaLogGroup('fnInterPeticionValidarSegurOtp');
+    
     const fnInterPeticionValidarSegurOtp = new NodejsFunction(this, `${this.stackName}-fnInterPeticionValidarSegurOtp`, {
       functionName: `${this.stackName}-fnInterPeticionValidarSegurOtp`,
       description: 'Lambda para validar OTP (TOKENRO o con hash)',
@@ -798,9 +858,12 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    fnInterPeticionValidarSegurOtp.node.addDependency(fnInterPeticionValidarSegurOtpLogGroup);
 
     // ===== PREGUNTAS DE SEGURIDAD (PregSeg): Lambdas Detalle Flujo =====
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterDetalleFlujoGenerarSegPregSegLogGroup = createLambdaLogGroup('fnInterDetalleFlujoGenerarSegPregSeg');
+    
     const fnInterDetalleFlujoGenerarSegPregSeg = new NodejsFunction(this, `${this.stackName}-fnInterDetalleFlujoGenerarSegPregSeg`, {
       functionName: `${this.stackName}-fnInterDetalleFlujoGenerarSegPregSeg`,
       description: 'Lambda para obtener detalle flujo parametrizable (Generar PregSeg)',
@@ -818,8 +881,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    fnInterDetalleFlujoGenerarSegPregSeg.node.addDependency(fnInterDetalleFlujoGenerarSegPregSegLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterDetalleFlujoValidarSegPregSegLogGroup = createLambdaLogGroup('fnInterDetalleFlujoValidarSegPregSeg');
+    
     const fnInterDetalleFlujoValidarSegPregSeg = new NodejsFunction(this, `${this.stackName}-fnInterDetalleFlujoValidarSegPregSeg`, {
       functionName: `${this.stackName}-fnInterDetalleFlujoValidarSegPregSeg`,
       description: 'Lambda para obtener detalle flujo parametrizable (Validar PregSeg)',
@@ -837,9 +903,12 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    fnInterDetalleFlujoValidarSegPregSeg.node.addDependency(fnInterDetalleFlujoValidarSegPregSegLogGroup);
 
     // ===== PREGUNTAS DE SEGURIDAD (PregSeg): Lambda Generar PregSeg =====
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterPeticionGenerarSegurPregSegLogGroup = createLambdaLogGroup('fnInterPeticionGenerarSegurPregSeg');
+    
     const fnInterPeticionGenerarSegurPregSeg = new NodejsFunction(this, `${this.stackName}-fnInterPeticionGenerarSegurPregSeg`, {
       functionName: `${this.stackName}-fnInterPeticionGenerarSegurPregSeg`,
       description: 'Lambda para generar Preguntas de Seguridad',
@@ -880,9 +949,14 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterPeticionValidarSegurPregSegLogGroup = createLambdaLogGroup('fnInterPeticionValidarSegurPregSeg');
+    fnInterPeticionValidarSegurPregSeg.node.addDependency(fnInterPeticionValidarSegurPregSegLogGroup);
 
     // ===== PREGUNTAS DE SEGURIDAD (PregSeg): Lambdas auxiliares =====
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterValidarHashSegurPregSegLogGroup = createLambdaLogGroup('fnInterValidarHashSegurPregSeg');
+    
     const fnInterValidarHashSegurPregSeg = new NodejsFunction(this, `${this.stackName}-fnInterValidarHashSegurPregSeg`, {
       functionName: `${this.stackName}-fnInterValidarHashSegurPregSeg`,
       description: 'Lambda para validar Hash de seguridad (PregSeg)',
@@ -901,8 +975,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    fnInterValidarHashSegurPregSeg.node.addDependency(fnInterValidarHashSegurPregSegLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterBorrarHashSegurPregSegLogGroup = createLambdaLogGroup('fnInterBorrarHashSegurPregSeg');
+    
     const fnInterBorrarHashSegurPregSeg = new NodejsFunction(this, `${this.stackName}-fnInterBorrarHashSegurPregSeg`, {
       functionName: `${this.stackName}-fnInterBorrarHashSegurPregSeg`,
       description: 'Lambda para borrar Hash de seguridad (PregSeg)',
@@ -951,6 +1028,9 @@ export class BMPIniciarSesion extends cdk.Stack {
     
 
     // Lambda para obtener productos (nueva para flujo obtenerTarifa)
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnObtenerTarifaTransfLogGroup = createLambdaLogGroup('fnObtenerTarifaTransf');
+    
     const fnObtenerTarifaTransf = new NodejsFunction(this, `${this.stackName}-fnObtenerTarifaTransf`, {
       functionName: `${this.stackName}-fnObtenerTarifaTransf`,
       description: 'Lambda para obtener productos del cliente',
@@ -968,10 +1048,12 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    fnObtenerTarifaTransf.node.addDependency(fnObtenerTarifaTransfLogGroup);
 
 
     // ===== FUNCIONES ESPECÍFICAS PARA RETIRO SIN TARJETA =====
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterCrearHashMonetOtroLogGroup = createLambdaLogGroup('fnInterCrearHashMonetOtro');
     
     const fnInterCrearHashMonetOtro = new NodejsFunction(this, `${this.stackName}-fnInterCrearHashMonetOtro`, {
       functionName: `${this.stackName}-fnInterCrearHashMonetOtro`,
@@ -991,8 +1073,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    fnInterCrearHashMonetOtro.node.addDependency(fnInterCrearHashMonetOtroLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterValidarHashMonetOtroLogGroup = createLambdaLogGroup('fnInterValidarHashMonetOtro');
+    
     const fnInterValidarHashMonetOtro = new NodejsFunction(this, `${this.stackName}-fnInterValidarHashMonetOtro`, {
       functionName: `${this.stackName}-fnInterValidarHashMonetOtro`,
       description: 'Lambda para validar hash de seguridad específico para retiro sin tarjeta',
@@ -1011,8 +1096,10 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
+    fnInterValidarHashMonetOtro.node.addDependency(fnInterValidarHashMonetOtroLogGroup);
 
-    
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterBorrarHashMonetOtroLogGroup = createLambdaLogGroup('fnInterBorrarHashMonetOtro');
 
     const fnInterBorrarHashMonetOtro = new NodejsFunction(this, `${this.stackName}-fnInterBorrarHashMonetOtro`, {
       functionName: `${this.stackName}-fnInterBorrarHashMonetOtro`,
@@ -1032,8 +1119,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
+    fnInterBorrarHashMonetOtro.node.addDependency(fnInterBorrarHashMonetOtroLogGroup);
     
-
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterBorrarClientIdMonetOtroLogGroup = createLambdaLogGroup('fnInterBorrarClientIdMonetOtro');
+    
     const fnInterBorrarClientIdMonetOtro = new NodejsFunction(this, `${this.stackName}-fnInterBorrarClientIdMonetOtro`, {
       functionName: `${this.stackName}-fnInterBorrarClientIdMonetOtro`,
       description: 'Lambda para borrar ClientId específico para retiro sin tarjeta',
@@ -1051,8 +1141,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
+    fnInterBorrarClientIdMonetOtro.node.addDependency(fnInterBorrarClientIdMonetOtroLogGroup);
     
-
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterPeticionMonetOtroLogGroup = createLambdaLogGroup('fnInterPeticionMonetOtro');
+    
     const fnInterPeticionMonetOtro = new NodejsFunction(this, `${this.stackName}-fnInterPeticionMonetOtro`, {
       functionName: `${this.stackName}-fnInterPeticionMonetOtro`,
       description: 'Lambda para ejecutar servicio de retiro sin tarjeta usando fnInterPeticion genérica',
@@ -1071,7 +1164,10 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    fnInterPeticionMonetOtro.node.addDependency(fnInterPeticionMonetOtroLogGroup);
+
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterPrepararRespuestaFinalMonetOtroLogGroup = createLambdaLogGroup('fnInterPrepararRespuestaFinalMonetOtro');
     
     const fnInterPrepararRespuestaFinalMonetOtro = new NodejsFunction(this, `${this.stackName}-fnInterPrepararRespuestaFinalMonetOtro`, {
       functionName: `${this.stackName}-fnInterPrepararRespuestaFinalMonetOtro`,
@@ -1088,6 +1184,10 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
+    fnInterPrepararRespuestaFinalMonetOtro.node.addDependency(fnInterPrepararRespuestaFinalMonetOtroLogGroup);
+
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterEncadenamientoMapeoFinalLogGroup = createLambdaLogGroup('fnInterEncadenamientoMapeoFinal');
     
     const fnInterEncadenamientoMapeoFinal = new NodejsFunction(this, `${this.stackName}-fnInterEncadenamientoMapeoFinal`, {
       functionName: `${this.stackName}-fnInterEncadenamientoMapeoFinal`,
@@ -1104,7 +1204,10 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    fnInterEncadenamientoMapeoFinal.node.addDependency(fnInterEncadenamientoMapeoFinalLogGroup);
+
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterPredecesorEncadenamientoLogGroup = createLambdaLogGroup('fnInterPredecesorEncadenamiento');
     
     const fnInterPredecesorEncadenamiento = new NodejsFunction(this, `${this.stackName}-fnInterPredecesorEncadenamiento`, {
       functionName: `${this.stackName}-fnInterPredecesorEncadenamiento`,
@@ -1123,7 +1226,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
+    fnInterPredecesorEncadenamiento.node.addDependency(fnInterPredecesorEncadenamientoLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterSucesorEncadenamientoLogGroup = createLambdaLogGroup('fnInterSucesorEncadenamiento');
+    
       const fnInterSucesorEncadenamiento = new NodejsFunction(this, `${this.stackName}-fnInterSucesorEncadenamiento`, {
       functionName: `${this.stackName}-fnInterSucesorEncadenamiento`,
       description: 'Lambda para ejecutar servicio de retiro sin tarjeta usando fnInterPeticion genérica',
@@ -1142,9 +1249,12 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    fnInterSucesorEncadenamiento.node.addDependency(fnInterSucesorEncadenamientoLogGroup);
 
     // === ENCADENAMIENTO: Lambda fnPredecesorValidarGen (Exterior) ===
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnPredecesorValidarGenLogGroup = createLambdaLogGroup('fnPredecesorValidarGen');
+    
     const fnPredecesorValidarGen = new NodejsFunction(this, `${this.stackName}-fnPredecesorValidarGen`, {
       functionName: `${this.stackName}-fnPredecesorValidarGen`,
       description: 'Lambda para validar predecesor en encadenamiento',
@@ -1162,9 +1272,12 @@ export class BMPIniciarSesion extends cdk.Stack {
       },
       ...lambdaProps,
     });
-    
+    fnPredecesorValidarGen.node.addDependency(fnPredecesorValidarGenLogGroup);
 
     // === ENCADENAMIENTO: Lambda fnSucesorValidarGen (Exterior) ===
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnSucesorValidarGenLogGroup = createLambdaLogGroup('fnSucesorValidarGen');
+    
     const fnSucesorValidarGen = new NodejsFunction(this, `${this.stackName}-fnSucesorValidarGen`, {
       functionName: `${this.stackName}-fnSucesorValidarGen`,
       description: 'Lambda para registrar sucesor en encadenamiento',
@@ -1182,8 +1295,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       },
       ...lambdaProps,
     });
-    
+    fnSucesorValidarGen.node.addDependency(fnSucesorValidarGenLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnAsegurarMensajeEntradaValidarGenLogGroup = createLambdaLogGroup('fnAsegurarMensajeEntradaValidarGen');
+    
     const fnAsegurarMensajeEntradaValidarGen = new NodejsFunction(this, `${this.stackName}-fnAsegurarMensajeEntradaValidarGen`, {
       functionName: `${this.stackName}-fnAsegurarMensajeEntradaValidarGen`,
       description: 'Lambda para registrar sucesor en encadenamiento',
@@ -1201,7 +1317,10 @@ export class BMPIniciarSesion extends cdk.Stack {
       },
       ...lambdaProps,
     });
-    
+    fnAsegurarMensajeEntradaValidarGen.node.addDependency(fnAsegurarMensajeEntradaValidarGenLogGroup);
+
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterPrepararRespuestaFinalValidarGenLogGroup = createLambdaLogGroup('fnInterPrepararRespuestaFinalValidarGen');
     
     const fnInterPrepararRespuestaFinalValidarGen = new NodejsFunction(this, `${this.stackName}-fnInterPrepararRespuestaFinalValidarGen`, {
       functionName: `${this.stackName}-fnInterPrepararRespuestaFinalValidarGen`,
@@ -1218,8 +1337,12 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
+    fnInterPrepararRespuestaFinalValidarGen.node.addDependency(fnInterPrepararRespuestaFinalValidarGenLogGroup);
 
     // === REGISTRO DE DISPOSITIVO: Lambda fnRegistrarDispositivo ===
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterPeticionControlSegurOtroLogGroup = createLambdaLogGroup('fnInterPeticionControlSegurOtro');
+    
     const fnInterPeticionControlSegurOtro = new NodejsFunction(this, `${this.stackName}-fnInterPeticionControlSegurOtro`, {
       functionName: `${this.stackName}-fnInterPeticionControlSegurOtro`,
       description: 'Lambda para registrar dispositivo y actualizar caché de sesión',
@@ -1240,9 +1363,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       },
       ...lambdaProps,
     });
+    fnInterPeticionControlSegurOtro.node.addDependency(fnInterPeticionControlSegurOtroLogGroup);
+
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterValidarHashControlSegurOtroLogGroup = createLambdaLogGroup('fnInterValidarHashControlSegurOtro');
     
-
-
     const fnInterValidarHashControlSegurOtro = new NodejsFunction(this, `${this.stackName}-fnInterValidarHashControlSegurOtro`, {
       functionName: `${this.stackName}-fnInterValidarHashControlSegurOtro`,
       description: 'Lambda para validar hash de seguridad específico para retiro sin tarjeta',
@@ -1261,8 +1386,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    fnInterValidarHashControlSegurOtro.node.addDependency(fnInterValidarHashControlSegurOtroLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterBorrarHashControlSegurOtroLogGroup = createLambdaLogGroup('fnInterBorrarHashControlSegurOtro');
+    
     const fnInterBorrarHashControlSegurOtro = new NodejsFunction(this, `${this.stackName}-fnInterBorrarHashControlSegurOtro`, {
       functionName: `${this.stackName}-fnInterBorrarHashControlSegurOtro`,
       description: 'Lambda para borrar hash de seguridad específico para retiro sin tarjeta',
@@ -1281,8 +1409,11 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
-    
+    fnInterBorrarHashControlSegurOtro.node.addDependency(fnInterBorrarHashControlSegurOtroLogGroup);
 
+    // LogGroup explícito para evitar Custom Resource LogRetention
+    const fnInterDetalleFlujoControlSegurOtroLogGroup = createLambdaLogGroup('fnInterDetalleFlujoControlSegurOtro');
+    
     const fnInterDetalleFlujoControlSegurOtro = new NodejsFunction(this, `${this.stackName}-fnInterDetalleFlujoControlSegurOtro`, {
        functionName: `${this.stackName}-fnInterDetalleFlujoControlSegurOtro`,
       description: 'Lambda para obtener detalle flujo parametrizable',
@@ -1303,6 +1434,7 @@ export class BMPIniciarSesion extends cdk.Stack {
       memorySize: memoryLambdaAltaTrx,
       ...lambdaProps,
     });
+    fnInterDetalleFlujoControlSegurOtro.node.addDependency(fnInterDetalleFlujoControlSegurOtroLogGroup);
     
     fnGenerarClientIdLogin.grantInvoke(new iam.ServicePrincipal('apigateway.amazonaws.com'));
     fnInterCrearHashTransf.grantInvoke(new iam.ServicePrincipal('apigateway.amazonaws.com'));
